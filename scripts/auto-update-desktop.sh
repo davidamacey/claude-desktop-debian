@@ -99,11 +99,9 @@ main() {
 	$dry_run && log '[DRY RUN mode]'
 
 	# --- Safety checks ---
+	# Note: we update even if the app is running; the new install takes
+	# effect on next launch without interrupting the current session.
 	if ! $force; then
-		if is_desktop_running; then
-			log 'Skipping: Claude Desktop is currently running'
-			return 0
-		fi
 		if is_cowork_active; then
 			log 'Skipping: Dispatch/Cowork agents are active'
 			return 0
@@ -144,11 +142,19 @@ main() {
 	if ! git -C "$repo_dir" checkout main 2>&1 | tee -a "$log_file"; then
 		log 'WARNING: git checkout main failed; continuing on current branch'
 	fi
-	if ! git -C "$repo_dir" pull origin main 2>&1 | tee -a "$log_file"; then
-		log 'ERROR: git pull failed'
-		notify 'Claude Desktop Update Failed' 'git pull failed' 'high'
+	# Stash any local changes so rebase can proceed cleanly.
+	local stashed=false
+	if ! git -C "$repo_dir" diff --quiet 2>/dev/null; then
+		git -C "$repo_dir" stash 2>&1 | tee -a "$log_file"
+		stashed=true
+	fi
+	if ! git -C "$repo_dir" pull --rebase origin main 2>&1 | tee -a "$log_file"; then
+		log 'ERROR: git pull --rebase failed'
+		$stashed && git -C "$repo_dir" stash pop 2>&1 | tee -a "$log_file"
+		notify 'Claude Desktop Update Failed' 'git pull --rebase failed' 'high'
 		return 1
 	fi
+	$stashed && git -C "$repo_dir" stash pop 2>&1 | tee -a "$log_file"
 
 	# --- Build .deb ---
 	log 'Building .deb package (this takes several minutes)...'

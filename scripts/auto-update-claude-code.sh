@@ -7,6 +7,9 @@
 #   --force    Skip running-session safety checks
 #   --dry-run  Show what would happen; make no changes
 
+# Ensure ~/.local/bin is in PATH (claude is installed there, not via NVM).
+export PATH="/home/superdave/.local/bin:$PATH"
+
 log_dir='/home/superdave/.local/log/claude-updates'
 log_file="$log_dir/claude-code.log"
 
@@ -115,15 +118,8 @@ main() {
 	version_before=$(claude_version)
 	log "Current version: $version_before"
 
-	# --- Safety check ---
-	if ! $force; then
-		if is_claude_code_active; then
-			log 'Skipping: active Claude Code sessions detected'
-			return 0
-		fi
-	else
-		log 'Safety checks bypassed (--force)'
-	fi
+	# Note: update proceeds regardless of active sessions; running
+	# sessions continue on the old binary until they exit.
 
 	if $dry_run; then
 		log '[DRY RUN] Would run: claude update'
