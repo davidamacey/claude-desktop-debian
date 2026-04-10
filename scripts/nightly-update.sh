@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Nightly orchestrator: updates Claude Desktop and Claude Code CLI.
+# Nightly orchestrator: updates Claude Code CLI.
+# NOTE: Claude Desktop update intentionally excluded — launch Desktop manually.
 # Designed to run unattended at 3 AM via cron.
 # Sends ntfy notifications on success or failure.
 #
@@ -124,19 +125,15 @@ main() {
 	log '================================================'
 
 	local code_status=0
-	local desktop_status=0
 
-	# 1. Update Claude Code CLI first (faster, lower risk).
+	# Update Claude Code CLI.
+	# NOTE: Claude Desktop auto-update intentionally removed — Desktop is
+	# launched manually only to prevent unattended cowork agent sessions
+	# from consuming API quota in the background.
 	run_script 'Claude Code CLI' \
 		"$scripts_dir/auto-update-claude-code.sh" \
 		"${flags[@]}"
 	code_status=$?
-
-	# 2. Update Claude Desktop (slower: downloads, builds, installs .deb).
-	run_script 'Claude Desktop' \
-		"$scripts_dir/auto-update-desktop.sh" \
-		"${flags[@]}"
-	desktop_status=$?
 
 	# --- Summary ---
 	log '--- Summary ---'
@@ -145,21 +142,13 @@ main() {
 	else
 		log "Claude Code CLI:   FAILED (exit $code_status)"
 	fi
-	if (( desktop_status == 0 )); then
-		log "Claude Desktop:    OK"
-	else
-		log "Claude Desktop:    FAILED (exit $desktop_status)"
-	fi
 
-	local overall=0
-	(( code_status != 0 || desktop_status != 0 )) && overall=1
+	local overall=$code_status
 
 	# --- ntfy notification ---
 	local summary_body
 	summary_body="Code CLI: $(
 		(( code_status == 0 )) && echo OK || echo "FAIL($code_status)"
-	) | Desktop: $(
-		(( desktop_status == 0 )) && echo OK || echo "FAIL($desktop_status)"
 	)"
 
 	if (( overall == 0 )); then
